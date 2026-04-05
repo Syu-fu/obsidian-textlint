@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-textlint",
 	"name": "Textlint",
-	"version": "0.1.4",
+	"version": "0.1.5",
 	"minAppVersion": "0.15.0",
 	"description": "Lint your notes with textlint (preset-ja-technical-writing, terminology).",
 	"author": "Syu-fu",
