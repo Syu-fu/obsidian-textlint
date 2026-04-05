@@ -63,13 +63,13 @@ export class ErrorListView extends ItemView {
 			const item = list.createEl("li", { cls: "textlint-error-item" });
 			const severityClass = msg.severity === 2 ? "textlint-severity-error" : "textlint-severity-warning";
 			item.createSpan({ cls: `textlint-severity ${severityClass}`, text: msg.severity === 2 ? "E" : "W" });
-			item.createSpan({ cls: "textlint-error-location", text: `${msg.line}:${msg.column}` });
+			item.createSpan({ cls: "textlint-error-location", text: `${msg.loc.start.line}:${msg.loc.start.column}` });
 			item.createSpan({ cls: "textlint-error-message", text: msg.message });
 			item.createSpan({ cls: "textlint-error-rule", text: `(${msg.ruleId})` });
 
 			// Click to jump to the line
 			item.addEventListener("click", () => {
-				this.jumpToLine(msg.line, msg.column);
+				this.jumpToLine(msg.loc.start.line, msg.loc.start.column);
 			});
 		}
 	}

@@ -77,7 +77,7 @@ export class TextlintSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		// ── Excluded folders ──────────────────────────────────────────────
-		containerEl.createEl("h2", { text: "除外フォルダ" });
+		new Setting(containerEl).setName("除外フォルダ").setHeading();
 
 		const folders = this.app.vault
 			.getAllFolders(true)
@@ -87,11 +87,11 @@ export class TextlintSettingTab extends PluginSettingTab {
 		this.renderExcludedFolders(containerEl, folders);
 
 		// ── preset-ja-technical-writing ───────────────────────────────────
-		containerEl.createEl("h2", { text: "preset-ja-technical-writing" });
+		new Setting(containerEl).setName("Preset ja technical writing").setHeading();
 		this.renderJaRules(containerEl);
 
 		// ── textlint-rule-terminology ─────────────────────────────────────
-		containerEl.createEl("h2", { text: "textlint-rule-terminology" });
+		new Setting(containerEl).setName("Terminology rule").setHeading();
 		this.renderTerminology(containerEl);
 	}
 
@@ -124,18 +124,18 @@ export class TextlintSettingTab extends PluginSettingTab {
 				}
 				inputEl.parentElement?.appendChild(datalist);
 
-				text.setPlaceholder("例: Templates");
+				text.setPlaceholder("例: templates");
 				return text;
 			})
 			.addButton((btn) => {
-				btn.setButtonText("追加").onClick(async () => {
+				btn.setButtonText("追加").onClick(() => {
 					const input = containerEl.querySelector<HTMLInputElement>(
 						"input[list='textlint-folder-list']"
 					);
 					const val = input?.value.trim();
 					if (val && !this.plugin.settings.excludedFolders.includes(val)) {
 						this.plugin.settings.excludedFolders.push(val);
-						await this.plugin.saveSettings();
+						void this.plugin.saveSettings();
 						this.display();
 					}
 				});
@@ -148,10 +148,10 @@ export class TextlintSettingTab extends PluginSettingTab {
 			const row = listEl.createDiv("textlint-excluded-folder-row");
 			row.createSpan({ text: folder });
 			const removeBtn = row.createEl("button", { text: "×" });
-			removeBtn.addEventListener("click", async () => {
+			removeBtn.addEventListener("click", () => {
 				this.plugin.settings.excludedFolders =
 					this.plugin.settings.excludedFolders.filter((f) => f !== folder);
-				await this.plugin.saveSettings();
+				void this.plugin.saveSettings();
 				this.display();
 			});
 		}
@@ -164,11 +164,11 @@ export class TextlintSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("有効")
-			.setDesc("preset-ja-technical-writing を使用する")
+			.setDesc("Preset-ja-technical-writing を使用する")
 			.addToggle((t) =>
-				t.setValue(cfg.enabled).onChange(async (v) => {
+				t.setValue(cfg.enabled).onChange((v) => {
 					cfg.enabled = v;
-					await this.plugin.saveSettings();
+					void this.plugin.saveSettings();
 				})
 			);
 
@@ -180,9 +180,9 @@ export class TextlintSettingTab extends PluginSettingTab {
 					.setLimits(0, 10, 1)
 					.setValue(cfg.maxTen)
 					.setDynamicTooltip()
-					.onChange(async (v) => {
+					.onChange((v) => {
 						cfg.maxTen = v;
-						await this.plugin.saveSettings();
+						void this.plugin.saveSettings();
 					})
 			);
 
@@ -194,9 +194,9 @@ export class TextlintSettingTab extends PluginSettingTab {
 					.setLimits(0, 20, 1)
 					.setValue(cfg.maxKanjiContinuousLen)
 					.setDynamicTooltip()
-					.onChange(async (v) => {
+					.onChange((v) => {
 						cfg.maxKanjiContinuousLen = v;
-						await this.plugin.saveSettings();
+						void this.plugin.saveSettings();
 					})
 			);
 
@@ -215,9 +215,9 @@ export class TextlintSettingTab extends PluginSettingTab {
 				.setName(rule.name)
 				.setDesc(rule.desc)
 				.addToggle((t) =>
-					t.setValue(cfg[rule.key] as boolean).onChange(async (v) => {
+					t.setValue(cfg[rule.key] as boolean).onChange((v) => {
 						(cfg[rule.key] as boolean) = v;
-						await this.plugin.saveSettings();
+						void this.plugin.saveSettings();
 					})
 				);
 		}
@@ -230,11 +230,11 @@ export class TextlintSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("有効")
-			.setDesc("textlint-rule-terminology を使用する")
+			.setDesc("Textlint-rule-terminology を使用する")
 			.addToggle((t) =>
-				t.setValue(cfg.enabled).onChange(async (v) => {
+				t.setValue(cfg.enabled).onChange((v) => {
 					cfg.enabled = v;
-					await this.plugin.saveSettings();
+					void this.plugin.saveSettings();
 				})
 			);
 
@@ -242,13 +242,13 @@ export class TextlintSettingTab extends PluginSettingTab {
 			.setName("コード内をスキップ")
 			.setDesc("コードスパン・コードブロック内のチェックをスキップする")
 			.addToggle((t) =>
-				t.setValue(cfg.skipCode).onChange(async (v) => {
+				t.setValue(cfg.skipCode).onChange((v) => {
 					cfg.skipCode = v;
-					await this.plugin.saveSettings();
+					void this.plugin.saveSettings();
 				})
 			);
 
-		containerEl.createEl("h3", { text: "カスタム用語" });
+		new Setting(containerEl).setName("カスタム用語").setHeading();
 		containerEl.createEl("p", {
 			text: "「誤り → 正しい表記」の形式で追加できます",
 			cls: "setting-item-description",
@@ -270,9 +270,9 @@ export class TextlintSettingTab extends PluginSettingTab {
 				const row = listEl.createDiv("textlint-term-row");
 				row.createSpan({ text: `${incorrect} → ${correct}` });
 				const removeBtn = row.createEl("button", { text: "×" });
-				removeBtn.addEventListener("click", async () => {
+				removeBtn.addEventListener("click", () => {
 					cfg.extraTerms.splice(i, 1);
-					await this.plugin.saveSettings();
+					void this.plugin.saveSettings();
 					refresh();
 				});
 			}
@@ -285,7 +285,7 @@ export class TextlintSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("誤った表記")
 			.addText((t) => {
-				t.setPlaceholder("例: Github").onChange((v) => {
+				t.setPlaceholder("誤った単語").onChange((v) => {
 					incorrectVal = v;
 				});
 			});
@@ -293,15 +293,15 @@ export class TextlintSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("正しい表記")
 			.addText((t) => {
-				t.setPlaceholder("例: GitHub").onChange((v) => {
+				t.setPlaceholder("正しい単語").onChange((v) => {
 					correctVal = v;
 				});
 			})
 			.addButton((btn) => {
-				btn.setButtonText("追加").onClick(async () => {
+				btn.setButtonText("追加").onClick(() => {
 					if (incorrectVal && correctVal) {
 						cfg.extraTerms.push([incorrectVal, correctVal]);
-						await this.plugin.saveSettings();
+						void this.plugin.saveSettings();
 						refresh();
 					}
 				});

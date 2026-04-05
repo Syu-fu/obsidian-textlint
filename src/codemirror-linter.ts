@@ -29,9 +29,9 @@ export function buildTextlintExtension(
 
 			const diagnostics: Diagnostic[] = [];
 			for (const msg of result.messages) {
-				const from = msg.index;
+				const from = msg.range[0];
 				// end index: use fix range if available, otherwise +1 char
-				const to = msg.fix ? msg.fix.range[1] : from + 1;
+				const to = msg.fix ? msg.fix.range[1] : msg.range[1];
 				const clampedTo = Math.min(to, text.length);
 				const clampedFrom = Math.min(from, clampedTo);
 

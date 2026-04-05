@@ -23,7 +23,7 @@ export default class TextlintPlugin extends Plugin {
 		// Re-lint current file whenever active file changes
 		this.registerEvent(
 			this.app.workspace.on("active-leaf-change", () => {
-				this.lintActiveFile();
+				void this.lintActiveFile();
 			})
 		);
 
@@ -32,7 +32,7 @@ export default class TextlintPlugin extends Plugin {
 			this.app.vault.on("modify", (file) => {
 				const active = this.app.workspace.getActiveFile();
 				if (active && file.path === active.path) {
-					this.lintActiveFile();
+					void this.lintActiveFile();
 				}
 			})
 		);
@@ -41,13 +41,13 @@ export default class TextlintPlugin extends Plugin {
 		this.addCommand({
 			id: "show-error-list",
 			name: "エラー一覧を開く",
-			callback: () => this.openErrorListView(),
+			callback: () => { void this.openErrorListView(); },
 		});
 
 		// Command: fix current file
 		this.addCommand({
 			id: "fix-current-file",
-			name: "現在のファイルを修正する (Fix)",
+			name: "現在のファイルを修正する (fix)",
 			checkCallback: (checking: boolean) => {
 				const file = this.app.workspace.getActiveFile();
 				if (!file || file.extension !== "md") return false;
@@ -61,7 +61,7 @@ export default class TextlintPlugin extends Plugin {
 	}
 
 	onunload(): void {
-		this.app.workspace.detachLeavesOfType(ERROR_LIST_VIEW_TYPE);
+		// Leaves are cleaned up by Obsidian automatically
 	}
 
 	async loadSettings(): Promise<void> {
@@ -115,12 +115,12 @@ export default class TextlintPlugin extends Plugin {
 	private async openErrorListView(): Promise<void> {
 		const existing = this.app.workspace.getLeavesOfType(ERROR_LIST_VIEW_TYPE);
 		if (existing.length > 0 && existing[0]) {
-			this.app.workspace.revealLeaf(existing[0]);
+			void this.app.workspace.revealLeaf(existing[0]);
 			return;
 		}
 		const leaf = this.app.workspace.getRightLeaf(false) ?? this.app.workspace.getLeaf(true);
 		await leaf.setViewState({ type: ERROR_LIST_VIEW_TYPE, active: true });
-		this.app.workspace.revealLeaf(leaf);
+		void this.app.workspace.revealLeaf(leaf);  // revealLeaf is void, no await needed
 		await this.lintActiveFile();
 	}
 
