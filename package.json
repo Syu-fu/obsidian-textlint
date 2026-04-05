@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-textlint",
-	"version": "0.1.7",
+	"version": "0.1.8",
 	"description": "Lint your Obsidian notes with textlint",
 	"main": "main.js",
 	"type": "module",
