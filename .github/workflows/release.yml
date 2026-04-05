@@ -1,0 +1,58 @@
+name: Release
+
+on:
+    push:
+        branches: [main]
+        paths:
+            - "src/**"
+            - "styles.css"
+            - "esbuild.config.mjs"
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  token: ${{ secrets.GITHUB_TOKEN }}
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: npm
+
+            - run: npm ci
+
+            - run: npm run build
+
+            - run: npm run lint
+
+            - name: Configure git
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+
+            - name: Bump patch version
+              run: npm version patch
+
+            - name: Build production bundle
+              run: node esbuild.config.mjs production
+
+            - name: Push commit and tag
+              run: |
+                  git push origin main
+                  git push origin --tags
+
+            - name: Create GitHub release
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  VERSION=$(node -p "require('./package.json').version")
+                  gh release create "v${VERSION}" \
+                    --title "v${VERSION}" \
+                    --generate-notes \
+                    main.js manifest.json styles.css
