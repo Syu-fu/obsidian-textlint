@@ -25,6 +25,7 @@ const terminology = require("textlint-rule-terminology") as {
  */
 const KUROMOJI_RULES = new Set([
 	"max-ten",
+	"no-mix-dearu-desumasu",       // uses analyze-desumasu-dearu → kuromojin
 	"no-double-negative-ja",
 	"no-doubled-conjunctive-particle-ga",
 	"no-doubled-conjunction",
@@ -89,9 +90,6 @@ export class TextlintService {
 
 			overrides["max-kanji-continuous-len"] =
 				cfg.maxKanjiContinuousLen === 0 ? false : { max: cfg.maxKanjiContinuousLen };
-			overrides["no-mix-dearu-desumasu"] = cfg.noMixDearuDesumasu
-				? (preset.rulesConfig["no-mix-dearu-desumasu"] ?? true)
-				: false;
 			overrides["ja-no-mixed-period"] = cfg.jaNomixedPeriod
 				? (preset.rulesConfig["ja-no-mixed-period"] ?? true)
 				: false;

@@ -5,8 +5,6 @@ import type TextlintPlugin from "./main";
 
 export interface JaTechnicalWritingConfig {
 	enabled: boolean;
-	/** no-mix-dearu-desumasu */
-	noMixDearuDesumasu: boolean;
 	/** max-kanji-continuous-len: 連続する漢字の最大数 (0 = disable) */
 	maxKanjiContinuousLen: number;
 	/** ja-no-mixed-period */
@@ -33,7 +31,6 @@ export const DEFAULT_SETTINGS: TextlintPluginSettings = {
 	excludedFolders: [],
 	jaTechnicalWriting: {
 		enabled: true,
-		noMixDearuDesumasu: true,
 		maxKanjiContinuousLen: 6,
 		jaNomixedPeriod: true,
 	},
@@ -169,7 +166,6 @@ export class TextlintSettingTab extends PluginSettingTab {
 			);
 
 		const boolRules: { key: keyof JaTechnicalWritingConfig; name: string; desc: string }[] = [
-			{ key: "noMixDearuDesumasu", name: "である/ですます混在を禁止", desc: "no-mix-dearu-desumasu" },
 			{ key: "jaNomixedPeriod", name: "句点の混在を禁止", desc: "ja-no-mixed-period" },
 		];
 
