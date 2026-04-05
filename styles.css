@@ -70,7 +70,7 @@
 	flex-shrink: 0;
 }
 
-/* ── Inline marks ────────────────────────────────────────────────────────── */
+/* ── Inline editor marks (wavy underlines) ───────────────────────────────── */
 
 .textlint-mark-error {
 	text-decoration: underline wavy var(--text-error);
