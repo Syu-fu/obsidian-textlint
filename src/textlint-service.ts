@@ -2,6 +2,7 @@ import { TextlintKernel } from "@textlint/kernel";
 import type { TextlintMessage, TextlintKernelRule } from "@textlint/kernel";
 import type { TextlintRuleModule, TextlintPluginCreator } from "@textlint/types";
 import type { TextlintPluginSettings } from "./settings";
+import defaultTerms from "textlint-rule-terminology/terms.jsonc";
 
 // These packages ship as CommonJS without proper ESM types, so we use typed imports.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -100,12 +101,16 @@ export class TextlintService {
 
 		if (settings.terminology.enabled) {
 			const cfg = settings.terminology;
+			// Bundle defaultTerms inline to avoid createRequire(import.meta.url) at runtime
+			const terms: (string | [string, string])[] = [
+				...cfg.extraTerms,
+				...defaultTerms,
+			];
 			const options: Record<string, unknown> = {
+				defaultTerms: false,
+				terms,
 				skip: cfg.skipCode ? ["Code", "InlineCode"] : [],
 			};
-			if (cfg.extraTerms.length > 0) {
-				options["terms"] = cfg.extraTerms.map(([inc, cor]) => [inc, cor]);
-			}
 			rules.push({
 				ruleId: "terminology",
 				rule: terminology.default,

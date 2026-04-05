@@ -1,6 +1,30 @@
 import esbuild from "esbuild";
 import process from "process";
-import { builtinModules } from 'node:module';
+import { builtinModules, createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+const _require = createRequire(import.meta.url);
+
+/** Strip // line comments from JSONC and bundle as JSON.
+ *  Also bypasses package.json `exports` restrictions for .jsonc files. */
+const jsoncPlugin = {
+	name: 'jsonc',
+	setup(build) {
+		// Bypass exports field for textlint-rule-terminology/terms.jsonc
+		build.onResolve({ filter: /textlint-rule-terminology\/terms\.jsonc$/ }, () => {
+			const pkgDir = path.dirname(_require.resolve('textlint-rule-terminology'));
+			return { path: path.resolve(pkgDir, '..', 'terms.jsonc') };
+		});
+
+		build.onLoad({ filter: /\.jsonc$/ }, (args) => {
+			const text = readFileSync(args.path, 'utf8');
+			// Remove single-line comments
+			const stripped = text.replace(/\/\/[^\n]*/g, '');
+			return { contents: stripped, loader: 'json' };
+		});
+	},
+};
 
 const banner =
 `/*
@@ -15,6 +39,7 @@ const context = await esbuild.context({
 	banner: {
 		js: banner,
 	},
+	plugins: [jsoncPlugin],
 	entryPoints: ["src/main.ts"],
 	bundle: true,
 	platform: "node",
