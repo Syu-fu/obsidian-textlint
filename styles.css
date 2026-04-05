@@ -82,6 +82,59 @@
 	text-underline-offset: 3px;
 }
 
+/* ── Hover tooltip ────────────────────────────────────────────────────────── */
+
+.textlint-tooltip {
+	padding: 4px 0;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	box-shadow: var(--shadow-s);
+	max-width: 420px;
+	font-size: var(--font-ui-small);
+}
+
+.textlint-tooltip-item {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	padding: 4px 10px;
+}
+
+.textlint-tooltip-item + .textlint-tooltip-item {
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.textlint-tooltip-badge {
+	flex-shrink: 0;
+	font-size: 0.75em;
+	font-weight: 600;
+	padding: 1px 5px;
+	border-radius: 3px;
+}
+
+.textlint-tooltip-badge.error {
+	color: var(--text-on-accent);
+	background: var(--text-error);
+}
+
+.textlint-tooltip-badge.warning {
+	color: var(--text-on-accent);
+	background: var(--text-warning, orange);
+}
+
+.textlint-tooltip-rule {
+	flex-shrink: 0;
+	color: var(--text-muted);
+	font-family: var(--font-monospace);
+	font-size: 0.85em;
+}
+
+.textlint-tooltip-message {
+	flex: 1;
+	line-height: 1.4;
+}
+
 /* ── Settings Tab ────────────────────────────────────────────────────────── */
 
 .textlint-excluded-folder-list {

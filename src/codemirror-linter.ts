@@ -1,15 +1,29 @@
 import { StateField, StateEffect, type Extension } from "@codemirror/state";
-import { Decoration, type DecorationSet, EditorView } from "@codemirror/view";
+import { Decoration, type DecorationSet, EditorView, hoverTooltip } from "@codemirror/view";
 import type { Range } from "@codemirror/state";
 import type { TextlintMessage } from "./textlint-service";
 
 /** Dispatch this effect to push new lint results into the editor. */
 export const setTextlintDiagnostics = StateEffect.define<TextlintMessage[]>();
 
+// ── Message store ─────────────────────────────────────────────────────────────
+
+/** Keeps the raw messages so the hover tooltip can query them by position. */
+const textlintMessages = StateField.define<TextlintMessage[]>({
+	create: () => [],
+	update(msgs, tr) {
+		for (const effect of tr.effects) {
+			if (effect.is(setTextlintDiagnostics)) return effect.value;
+		}
+		return msgs;
+	},
+});
+
+// ── Decoration field ──────────────────────────────────────────────────────────
+
 const textlintField = StateField.define<DecorationSet>({
 	create: () => Decoration.none,
 	update(deco, tr) {
-		// Keep marks in sync with document changes
 		deco = deco.map(tr.changes);
 		for (const effect of tr.effects) {
 			if (effect.is(setTextlintDiagnostics)) {
@@ -34,15 +48,58 @@ function buildDecorations(messages: TextlintMessage[], docLen: number): Decorati
 			}).range(from, to)
 		);
 	}
-	// Decoration.set requires ranges sorted by `from`
 	ranges.sort((a, b) => a.from - b.from);
 	return Decoration.set(ranges);
 }
 
-/**
- * Returns the CodeMirror Extension that renders textlint results as
- * inline marks.  Push results via `setTextlintDiagnostics` effect.
- */
+// ── Hover tooltip ─────────────────────────────────────────────────────────────
+
+const textlintHover = hoverTooltip((view, pos) => {
+	const messages = view.state.field(textlintMessages);
+	const docLen = view.state.doc.length;
+
+	const hits = messages.filter((msg) => {
+		const from = Math.min(msg.range[0], docLen);
+		const rawTo = msg.fix ? msg.fix.range[1] : msg.range[1];
+		const to = Math.min(Math.max(rawTo, from + 1), docLen);
+		return pos >= from && pos < to;
+	});
+
+	if (hits.length === 0) return null;
+
+	const first = hits[0]!;
+	const from = Math.min(first.range[0], docLen);
+
+	return {
+		pos: from,
+		above: true,
+		create() {
+			const dom = document.createElement("div");
+			dom.className = "textlint-tooltip";
+			for (const msg of hits) {
+				const row = dom.appendChild(document.createElement("div"));
+				row.className = "textlint-tooltip-item";
+
+				const badge = row.appendChild(document.createElement("span"));
+				badge.className =
+					msg.severity === 2 ? "textlint-tooltip-badge error" : "textlint-tooltip-badge warning";
+				badge.textContent = msg.severity === 2 ? "Error" : "Warning";
+
+				const rule = row.appendChild(document.createElement("span"));
+				rule.className = "textlint-tooltip-rule";
+				rule.textContent = msg.ruleId ?? "";
+
+				const text = row.appendChild(document.createElement("span"));
+				text.className = "textlint-tooltip-message";
+				text.textContent = msg.message;
+			}
+			return { dom };
+		},
+	};
+});
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
 export function buildTextlintExtension(): Extension {
-	return textlintField;
+	return [textlintMessages, textlintField, textlintHover];
 }
