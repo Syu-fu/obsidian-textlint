@@ -23,21 +23,23 @@ export function buildTextlintExtension(
 			let result;
 			try {
 				result = await service.lint(text, getSettings());
-			} catch {
+			} catch (e) {
+				console.error("[textlint] lint error:", e);
 				return [];
 			}
 
 			const diagnostics: Diagnostic[] = [];
 			for (const msg of result.messages) {
-				const from = msg.range[0];
-				// end index: use fix range if available, otherwise +1 char
-				const to = msg.fix ? msg.fix.range[1] : msg.range[1];
-				const clampedTo = Math.min(to, text.length);
-				const clampedFrom = Math.min(from, clampedTo);
+				const from = Math.min(msg.range[0], text.length);
+				// Ensure the range covers at least 1 character so CM6 renders the mark
+				const rawTo = msg.fix ? msg.fix.range[1] : msg.range[1];
+				const to = Math.min(Math.max(rawTo, from + 1), text.length);
+
+				if (from >= to) continue;
 
 				diagnostics.push({
-					from: clampedFrom,
-					to: clampedTo,
+					from,
+					to,
 					severity: msg.severity === 2 ? "error" : "warning",
 					message: `[${msg.ruleId}] ${msg.message}`,
 					source: "textlint",
