@@ -1,5 +1,7 @@
-import { App, PluginSettingTab, Setting, TFolder } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting, TFolder } from "obsidian";
 import type TextlintPlugin from "./main";
+import { downloadDict, isDictReady } from "./kuromoji-setup";
+import { join } from "path";
 
 // ─── Rule config types ───────────────────────────────────────────────────────
 
@@ -9,6 +11,28 @@ export interface JaTechnicalWritingConfig {
 	maxKanjiContinuousLen: number;
 	/** ja-no-mixed-period */
 	jaNomixedPeriod: boolean;
+	/** max-ten: 読点の最大数 (0 = disable) */
+	maxTen: number;
+	/** no-mix-dearu-desumasu */
+	noMixDearuDesumasu: boolean;
+	/** no-double-negative-ja */
+	noDoubleNegativeJa: boolean;
+	/** no-doubled-conjunctive-particle-ga */
+	noDoubledConjunctiveParticleGa: boolean;
+	/** no-doubled-conjunction */
+	noDoubledConjunction: boolean;
+	/** no-doubled-joshi */
+	noDoubledJoshi: boolean;
+	/** no-dropping-the-ra */
+	noDroppingTheRa: boolean;
+	/** ja-no-abusage */
+	jaNoAbusage: boolean;
+	/** ja-no-redundant-expression */
+	jaNoRedundantExpression: boolean;
+	/** ja-no-successive-word */
+	jaNoSuccessiveWord: boolean;
+	/** ja-no-weak-phrase */
+	jaNoWeakPhrase: boolean;
 }
 
 export interface TerminologyConfig {
@@ -33,6 +57,17 @@ export const DEFAULT_SETTINGS: TextlintPluginSettings = {
 		enabled: true,
 		maxKanjiContinuousLen: 6,
 		jaNomixedPeriod: true,
+		maxTen: 3,
+		noMixDearuDesumasu: true,
+		noDoubleNegativeJa: true,
+		noDoubledConjunctiveParticleGa: true,
+		noDoubledConjunction: true,
+		noDoubledJoshi: true,
+		noDroppingTheRa: true,
+		jaNoAbusage: true,
+		jaNoRedundantExpression: true,
+		jaNoSuccessiveWord: true,
+		jaNoWeakPhrase: true,
 	},
 	terminology: {
 		enabled: true,
@@ -179,6 +214,84 @@ export class TextlintSettingTab extends PluginSettingTab {
 						void this.plugin.saveSettings();
 					})
 				);
+		}
+
+		// ── Kuromoji rules ────────────────────────────────────────────────────
+		new Setting(containerEl).setName("形態素解析ルール (kuromoji)").setHeading();
+
+		const dictDir = join(this.plugin.pluginDir, "dict");
+		const dictReady = isDictReady(dictDir);
+
+		if (!dictReady) {
+			new Setting(containerEl)
+				.setName("辞書をダウンロード")
+				// eslint-disable-next-line obsidianmd/ui/sentence-case
+				.setDesc("Kuromoji 辞書が必要です（形態素解析ルール使用、約 17 MB）")
+				.addButton((btn) => {
+					btn.setButtonText("ダウンロード").onClick(async () => {
+						btn.setDisabled(true);
+						btn.setButtonText("ダウンロード中…");
+						try {
+							await downloadDict(dictDir);
+							process.env.KUROMOJIN_DIC_PATH = dictDir;
+							new Notice("Kuromoji 辞書のダウンロードが完了しました");
+							this.display();
+						} catch (e) {
+							console.error("[textlint] dict download error:", e);
+							new Notice("ダウンロードに失敗しました。再試行してください");
+							btn.setDisabled(false);
+							btn.setButtonText("ダウンロード");
+						}
+					});
+				});
+		} else {
+			new Setting(containerEl)
+				.setName("辞書の状態")
+				.setDesc("Kuromoji 辞書はインストール済みです");
+		}
+
+		const kuromojiRules: { key: keyof JaTechnicalWritingConfig; name: string; desc: string }[] = [
+			{ key: "maxTen", name: "読点の最大数 (max-ten)", desc: "文中の読点（、）の上限" },
+			{ key: "noMixDearuDesumasu", name: "文体の混在を禁止 (no-mix-dearu-desumasu)", desc: "である調とですます調の混在を禁止" },
+			{ key: "noDoubleNegativeJa", name: "二重否定を禁止 (no-double-negative-ja)", desc: "二重否定表現を禁止" },
+			{ key: "noDoubledConjunctiveParticleGa", name: "逆接の接続助詞「が」の多用禁止 (no-doubled-conjunctive-particle-ga)", desc: "逆接の「が」の重複を禁止" },
+			{ key: "noDoubledConjunction", name: "同じ接続詞の連続使用禁止 (no-doubled-conjunction)", desc: "同じ接続詞の連続使用を禁止" },
+			{ key: "noDoubledJoshi", name: "同じ助詞の連続使用禁止 (no-doubled-joshi)", desc: "同じ助詞の連続使用を禁止" },
+			{ key: "noDroppingTheRa", name: "ら抜き言葉を禁止 (no-dropping-the-ra)", desc: "ら抜き言葉を禁止" },
+			{ key: "jaNoAbusage", name: "誤用表現を禁止 (ja-no-abusage)", desc: "よくある誤用表現を禁止" },
+			{ key: "jaNoRedundantExpression", name: "冗長表現を禁止 (ja-no-redundant-expression)", desc: "冗長な表現を禁止" },
+			{ key: "jaNoSuccessiveWord", name: "同じ単語の連続使用禁止 (ja-no-successive-word)", desc: "同じ単語の連続使用を禁止" },
+			{ key: "jaNoWeakPhrase", name: "弱い日本語表現の禁止 (ja-no-weak-phrase)", desc: "「思います」等の弱い表現を禁止" },
+		];
+
+		for (const rule of kuromojiRules) {
+			if (rule.key === "maxTen") {
+				new Setting(containerEl)
+					.setName(rule.name)
+					.setDesc(rule.desc)
+					.setDisabled(!dictReady)
+					.addSlider((s) =>
+						s
+							.setLimits(0, 10, 1)
+							.setValue(cfg.maxTen)
+							.setDynamicTooltip()
+							.onChange((v) => {
+								cfg.maxTen = v;
+								void this.plugin.saveSettings();
+							})
+					);
+			} else {
+				new Setting(containerEl)
+					.setName(rule.name)
+					.setDesc(rule.desc)
+					.setDisabled(!dictReady)
+					.addToggle((t) =>
+						t.setValue(cfg[rule.key] as boolean).onChange((v) => {
+							(cfg[rule.key] as boolean) = v;
+							void this.plugin.saveSettings();
+						})
+					);
+			}
 		}
 	}
 

@@ -19,24 +19,6 @@ const terminology = require("textlint-rule-terminology") as {
 	default: TextlintRuleModule;
 };
 
-/**
- * Rules that internally call require.resolve("kuromoji") for morphological analysis.
- * require.resolve is unavailable in Obsidian's plugin environment, so these are skipped.
- */
-const KUROMOJI_RULES = new Set([
-	"max-ten",
-	"no-mix-dearu-desumasu",       // uses analyze-desumasu-dearu → kuromojin
-	"no-double-negative-ja",
-	"no-doubled-conjunctive-particle-ga",
-	"no-doubled-conjunction",
-	"no-doubled-joshi",
-	"no-dropping-the-ra",
-	"ja-no-abusage",
-	"ja-no-redundant-expression",
-	"ja-no-successive-word",
-	"ja-no-weak-phrase",
-]);
-
 export type { TextlintMessage };
 
 export interface LintResult {
@@ -94,10 +76,21 @@ export class TextlintService {
 				? (preset.rulesConfig["ja-no-mixed-period"] ?? true)
 				: false;
 
-			for (const [id, rule] of Object.entries(preset.rules)) {
-				// Skip rules that need kuromoji (require.resolve unavailable in Obsidian)
-				if (KUROMOJI_RULES.has(id)) continue;
+			// Kuromoji-dependent rules (enabled only when KUROMOJIN_DIC_PATH is set)
+			const kuromojiReady = !!process.env.KUROMOJIN_DIC_PATH;
+			overrides["max-ten"] = kuromojiReady && cfg.maxTen > 0 ? { max: cfg.maxTen } : false;
+			overrides["no-mix-dearu-desumasu"] = kuromojiReady && cfg.noMixDearuDesumasu;
+			overrides["no-double-negative-ja"] = kuromojiReady && cfg.noDoubleNegativeJa;
+			overrides["no-doubled-conjunctive-particle-ga"] = kuromojiReady && cfg.noDoubledConjunctiveParticleGa;
+			overrides["no-doubled-conjunction"] = kuromojiReady && cfg.noDoubledConjunction;
+			overrides["no-doubled-joshi"] = kuromojiReady && cfg.noDoubledJoshi;
+			overrides["no-dropping-the-ra"] = kuromojiReady && cfg.noDroppingTheRa;
+			overrides["ja-no-abusage"] = kuromojiReady && cfg.jaNoAbusage;
+			overrides["ja-no-redundant-expression"] = kuromojiReady && cfg.jaNoRedundantExpression;
+			overrides["ja-no-successive-word"] = kuromojiReady && cfg.jaNoSuccessiveWord;
+			overrides["ja-no-weak-phrase"] = kuromojiReady && cfg.jaNoWeakPhrase;
 
+			for (const [id, rule] of Object.entries(preset.rules)) {
 				const defaultOpt = preset.rulesConfig[id] ?? true;
 				const opt = id in overrides ? overrides[id] : defaultOpt;
 				if (opt === false) continue;

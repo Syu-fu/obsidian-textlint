@@ -1,4 +1,6 @@
-import { MarkdownView, Notice, Plugin, TFile } from "obsidian";
+import { FileSystemAdapter, MarkdownView, Notice, Plugin, TFile } from "obsidian";
+import { join } from "path";
+import { setupKuromoji } from "./kuromoji-setup";
 import { DEFAULT_SETTINGS, TextlintPluginSettings, TextlintSettingTab } from "./settings";
 import { TextlintService } from "./textlint-service";
 import { buildTextlintExtension, setTextlintDiagnostics } from "./codemirror-linter";
@@ -7,11 +9,20 @@ import type { EditorView } from "@codemirror/view";
 
 export default class TextlintPlugin extends Plugin {
 	settings: TextlintPluginSettings;
+	pluginDir: string;
 	private service: TextlintService;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
 		this.service = new TextlintService();
+
+		// Resolve the absolute path to this plugin's directory
+		const adapter = this.app.vault.adapter;
+		const basePath = adapter instanceof FileSystemAdapter ? adapter.getBasePath() : "";
+		this.pluginDir = join(basePath, this.manifest.dir ?? `.obsidian/plugins/${this.manifest.id}`);
+
+		// Set KUROMOJIN_DIC_PATH so kuromojin never calls require.resolve("kuromoji")
+		void setupKuromoji(this.pluginDir);
 
 		// Register the error list sidebar view
 		this.registerView(ERROR_LIST_VIEW_TYPE, (leaf) => new ErrorListView(leaf));
