@@ -5,24 +5,12 @@ import type TextlintPlugin from "./main";
 
 export interface JaTechnicalWritingConfig {
 	enabled: boolean;
-	/** max-ten: 読点の最大連続数 (0 = disable) */
-	maxTen: number;
 	/** no-mix-dearu-desumasu */
 	noMixDearuDesumasu: boolean;
-	/** no-doubled-joshi */
-	noDoubledJoshi: boolean;
 	/** max-kanji-continuous-len: 連続する漢字の最大数 (0 = disable) */
 	maxKanjiContinuousLen: number;
 	/** ja-no-mixed-period */
 	jaNomixedPeriod: boolean;
-	/** ja-no-redundant-expression */
-	jaNoRedundantExpression: boolean;
-	/** ja-no-abusage */
-	jaNoAbusage: boolean;
-	/** ja-no-weak-phrase */
-	jaNoWeakPhrase: boolean;
-	/** no-drop-the-subject */
-	noDropTheSubject: boolean;
 }
 
 export interface TerminologyConfig {
@@ -45,15 +33,9 @@ export const DEFAULT_SETTINGS: TextlintPluginSettings = {
 	excludedFolders: [],
 	jaTechnicalWriting: {
 		enabled: true,
-		maxTen: 3,
 		noMixDearuDesumasu: true,
-		noDoubledJoshi: true,
 		maxKanjiContinuousLen: 6,
 		jaNomixedPeriod: true,
-		jaNoRedundantExpression: true,
-		jaNoAbusage: true,
-		jaNoWeakPhrase: false,
-		noDropTheSubject: false,
 	},
 	terminology: {
 		enabled: true,
@@ -173,20 +155,6 @@ export class TextlintSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("読点の最大連続数 (max-ten)")
-			.setDesc("一文中の「、」の最大数。0 で無効")
-			.addSlider((s) =>
-				s
-					.setLimits(0, 10, 1)
-					.setValue(cfg.maxTen)
-					.setDynamicTooltip()
-					.onChange((v) => {
-						cfg.maxTen = v;
-						void this.plugin.saveSettings();
-					})
-			);
-
-		new Setting(containerEl)
 			.setName("連続する漢字の最大数 (max-kanji-continuous-len)")
 			.setDesc("連続する漢字の最大文字数。0 で無効")
 			.addSlider((s) =>
@@ -202,12 +170,7 @@ export class TextlintSettingTab extends PluginSettingTab {
 
 		const boolRules: { key: keyof JaTechnicalWritingConfig; name: string; desc: string }[] = [
 			{ key: "noMixDearuDesumasu", name: "である/ですます混在を禁止", desc: "no-mix-dearu-desumasu" },
-			{ key: "noDoubledJoshi", name: "助詞の連続を禁止", desc: "no-doubled-joshi" },
 			{ key: "jaNomixedPeriod", name: "句点の混在を禁止", desc: "ja-no-mixed-period" },
-			{ key: "jaNoRedundantExpression", name: "冗長な表現を禁止", desc: "ja-no-redundant-expression" },
-			{ key: "jaNoAbusage", name: "誤った用法を禁止", desc: "ja-no-abusage" },
-			{ key: "jaNoWeakPhrase", name: "弱い表現を禁止", desc: "ja-no-weak-phrase" },
-			{ key: "noDropTheSubject", name: "主語省略を禁止", desc: "no-drop-the-subject" },
 		];
 
 		for (const rule of boolRules) {

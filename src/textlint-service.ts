@@ -19,6 +19,23 @@ const terminology = require("textlint-rule-terminology") as {
 	default: TextlintRuleModule;
 };
 
+/**
+ * Rules that internally call require.resolve("kuromoji") for morphological analysis.
+ * require.resolve is unavailable in Obsidian's plugin environment, so these are skipped.
+ */
+const KUROMOJI_RULES = new Set([
+	"max-ten",
+	"no-double-negative-ja",
+	"no-doubled-conjunctive-particle-ga",
+	"no-doubled-conjunction",
+	"no-doubled-joshi",
+	"no-dropping-the-ra",
+	"ja-no-abusage",
+	"ja-no-redundant-expression",
+	"ja-no-successive-word",
+	"ja-no-weak-phrase",
+]);
+
 export type { TextlintMessage };
 
 export interface LintResult {
@@ -70,24 +87,19 @@ export class TextlintService {
 			const cfg = settings.jaTechnicalWriting;
 			const overrides: Record<string, boolean | Record<string, unknown>> = {};
 
-			overrides["max-ten"] =
-				cfg.maxTen === 0 ? false : { max: cfg.maxTen };
 			overrides["max-kanji-continuous-len"] =
 				cfg.maxKanjiContinuousLen === 0 ? false : { max: cfg.maxKanjiContinuousLen };
 			overrides["no-mix-dearu-desumasu"] = cfg.noMixDearuDesumasu
 				? (preset.rulesConfig["no-mix-dearu-desumasu"] ?? true)
 				: false;
-			overrides["no-doubled-joshi"] = cfg.noDoubledJoshi
-				? (preset.rulesConfig["no-doubled-joshi"] ?? true)
-				: false;
 			overrides["ja-no-mixed-period"] = cfg.jaNomixedPeriod
 				? (preset.rulesConfig["ja-no-mixed-period"] ?? true)
 				: false;
-			overrides["ja-no-redundant-expression"] = cfg.jaNoRedundantExpression;
-			overrides["ja-no-abusage"] = cfg.jaNoAbusage;
-			overrides["ja-no-weak-phrase"] = cfg.jaNoWeakPhrase;
 
 			for (const [id, rule] of Object.entries(preset.rules)) {
+				// Skip rules that need kuromoji (require.resolve unavailable in Obsidian)
+				if (KUROMOJI_RULES.has(id)) continue;
+
 				const defaultOpt = preset.rulesConfig[id] ?? true;
 				const opt = id in overrides ? overrides[id] : defaultOpt;
 				if (opt === false) continue;
