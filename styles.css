@@ -70,6 +70,18 @@
 	flex-shrink: 0;
 }
 
+/* ── Inline marks ────────────────────────────────────────────────────────── */
+
+.textlint-mark-error {
+	text-decoration: underline wavy var(--text-error);
+	text-underline-offset: 3px;
+}
+
+.textlint-mark-warning {
+	text-decoration: underline wavy var(--text-warning, orange);
+	text-underline-offset: 3px;
+}
+
 /* ── Settings Tab ────────────────────────────────────────────────────────── */
 
 .textlint-excluded-folder-list {

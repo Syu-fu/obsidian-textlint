@@ -25,6 +25,8 @@
 	},
 	"dependencies": {
 		"@codemirror/lint": "^6.9.5",
+		"@codemirror/state": "^6.6.0",
+		"@codemirror/view": "^6.41.0",
 		"@textlint/kernel": "^15.5.2",
 		"@textlint/textlint-plugin-markdown": "^15.5.2",
 		"obsidian": "latest",

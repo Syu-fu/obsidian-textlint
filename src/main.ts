@@ -1,8 +1,9 @@
 import { MarkdownView, Notice, Plugin, TFile } from "obsidian";
 import { DEFAULT_SETTINGS, TextlintPluginSettings, TextlintSettingTab } from "./settings";
 import { TextlintService } from "./textlint-service";
-import { buildTextlintExtension } from "./codemirror-linter";
+import { buildTextlintExtension, setTextlintDiagnostics } from "./codemirror-linter";
 import { ERROR_LIST_VIEW_TYPE, ErrorListView } from "./error-list-view";
+import type { EditorView } from "@codemirror/view";
 
 export default class TextlintPlugin extends Plugin {
 	settings: TextlintPluginSettings;
@@ -15,10 +16,8 @@ export default class TextlintPlugin extends Plugin {
 		// Register the error list sidebar view
 		this.registerView(ERROR_LIST_VIEW_TYPE, (leaf) => new ErrorListView(leaf));
 
-		// Register CodeMirror extension for inline wavy underlines
-		this.registerEditorExtension(
-			buildTextlintExtension(this.service, () => this.settings)
-		);
+		// Register CodeMirror extension for inline marks
+		this.registerEditorExtension(buildTextlintExtension());
 
 		// Re-lint current file whenever active file changes
 		this.registerEvent(
@@ -99,11 +98,22 @@ export default class TextlintPlugin extends Plugin {
 		const file = this.app.workspace.getActiveFile();
 		if (!file || file.extension !== "md" || this.isExcluded(file)) {
 			this.updateErrorView(file?.path ?? "", []);
+			this.dispatchToEditor([]);
 			return;
 		}
 		const text = await this.app.vault.cachedRead(file);
 		const { messages } = await this.service.lint(text, this.settings);
 		this.updateErrorView(file.path, messages);
+		this.dispatchToEditor(messages);
+	}
+
+	private dispatchToEditor(messages: import("./textlint-service").TextlintMessage[]): void {
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!view) return;
+		// Access the underlying CM6 EditorView via the internal `cm` property
+		const cmView = (view.editor as unknown as { cm?: EditorView }).cm;
+		if (!cmView) return;
+		cmView.dispatch({ effects: setTextlintDiagnostics.of(messages) });
 	}
 
 	private updateErrorView(filePath: string, messages: import("./textlint-service").TextlintMessage[]): void {
