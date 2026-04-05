@@ -13,7 +13,6 @@
 	"keywords": [],
 	"license": "0-BSD",
 	"devDependencies": {
-		"@codemirror/lint": "^6.9.5",
 		"@eslint/js": "9.30.1",
 		"@types/node": "^16.11.6",
 		"esbuild": "0.25.5",
@@ -25,6 +24,7 @@
 		"typescript-eslint": "8.35.1"
 	},
 	"dependencies": {
+		"@codemirror/lint": "^6.9.5",
 		"@textlint/kernel": "^15.5.2",
 		"@textlint/textlint-plugin-markdown": "^15.5.2",
 		"obsidian": "latest",
