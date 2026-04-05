@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
-	"version": "1.0.0",
+	"id": "obsidian-textlint",
+	"name": "Textlint",
+	"version": "0.1.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
-	"isDesktopOnly": false
+	"description": "Lint your notes with textlint (preset-ja-technical-writing, terminology).",
+	"author": "Syu-fu",
+	"authorUrl": "https://github.com/Syu-fu",
+	"isDesktopOnly": true
 }

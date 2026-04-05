@@ -1,36 +1,310 @@
-import {App, PluginSettingTab, Setting} from "obsidian";
-import MyPlugin from "./main";
+import { App, PluginSettingTab, Setting, TFolder } from "obsidian";
+import type TextlintPlugin from "./main";
 
-export interface MyPluginSettings {
-	mySetting: string;
+// ─── Rule config types ───────────────────────────────────────────────────────
+
+export interface JaTechnicalWritingConfig {
+	enabled: boolean;
+	/** max-ten: 読点の最大連続数 (0 = disable) */
+	maxTen: number;
+	/** no-mix-dearu-desumasu */
+	noMixDearuDesumasu: boolean;
+	/** no-doubled-joshi */
+	noDoubledJoshi: boolean;
+	/** max-kanji-continuous-len: 連続する漢字の最大数 (0 = disable) */
+	maxKanjiContinuousLen: number;
+	/** ja-no-mixed-period */
+	jaNomixedPeriod: boolean;
+	/** ja-no-redundant-expression */
+	jaNoRedundantExpression: boolean;
+	/** ja-no-abusage */
+	jaNoAbusage: boolean;
+	/** ja-no-weak-phrase */
+	jaNoWeakPhrase: boolean;
+	/** no-drop-the-subject */
+	noDropTheSubject: boolean;
 }
 
-export const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+export interface TerminologyConfig {
+	enabled: boolean;
+	/** Additional custom term corrections: [[incorrect, correct], ...] */
+	extraTerms: [string, string][];
+	/** Skips terms check inside code spans and code blocks */
+	skipCode: boolean;
 }
 
-export class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+// ─── Plugin settings ─────────────────────────────────────────────────────────
 
-	constructor(app: App, plugin: MyPlugin) {
+export interface TextlintPluginSettings {
+	excludedFolders: string[];
+	jaTechnicalWriting: JaTechnicalWritingConfig;
+	terminology: TerminologyConfig;
+}
+
+export const DEFAULT_SETTINGS: TextlintPluginSettings = {
+	excludedFolders: [],
+	jaTechnicalWriting: {
+		enabled: true,
+		maxTen: 3,
+		noMixDearuDesumasu: true,
+		noDoubledJoshi: true,
+		maxKanjiContinuousLen: 6,
+		jaNomixedPeriod: true,
+		jaNoRedundantExpression: true,
+		jaNoAbusage: true,
+		jaNoWeakPhrase: false,
+		noDropTheSubject: false,
+	},
+	terminology: {
+		enabled: true,
+		extraTerms: [],
+		skipCode: true,
+	},
+};
+
+// ─── Settings tab ─────────────────────────────────────────────────────────────
+
+export class TextlintSettingTab extends PluginSettingTab {
+	plugin: TextlintPlugin;
+
+	constructor(app: App, plugin: TextlintPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
 	display(): void {
-		const {containerEl} = this;
-
+		const { containerEl } = this;
 		containerEl.empty();
 
+		// ── Excluded folders ──────────────────────────────────────────────
+		containerEl.createEl("h2", { text: "除外フォルダ" });
+
+		const folders = this.app.vault
+			.getAllFolders(true)
+			.map((f: TFolder) => f.path)
+			.sort();
+
+		this.renderExcludedFolders(containerEl, folders);
+
+		// ── preset-ja-technical-writing ───────────────────────────────────
+		containerEl.createEl("h2", { text: "preset-ja-technical-writing" });
+		this.renderJaRules(containerEl);
+
+		// ── textlint-rule-terminology ─────────────────────────────────────
+		containerEl.createEl("h2", { text: "textlint-rule-terminology" });
+		this.renderTerminology(containerEl);
+	}
+
+	// ── Excluded folders ──────────────────────────────────────────────────────
+
+	private renderExcludedFolders(containerEl: HTMLElement, allFolders: string[]): void {
+		const { excludedFolders } = this.plugin.settings;
+
+		// List of currently excluded folders
+		const listEl = containerEl.createDiv("textlint-excluded-folder-list");
+		this.refreshExcludedFolderList(listEl);
+
+		// Add folder input with datalist autocomplete
 		new Setting(containerEl)
-			.setName('Settings #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
+			.setName("フォルダを追加")
+			.setDesc("除外するフォルダを選択または入力してください")
+			.addText((text) => {
+				const inputEl = text.inputEl;
+				inputEl.setAttribute("list", "textlint-folder-list");
+
+				// Build datalist
+				const datalist = document.createElement("datalist");
+				datalist.id = "textlint-folder-list";
+				for (const f of allFolders) {
+					if (!excludedFolders.includes(f)) {
+						const option = document.createElement("option");
+						option.value = f;
+						datalist.appendChild(option);
+					}
+				}
+				inputEl.parentElement?.appendChild(datalist);
+
+				text.setPlaceholder("例: Templates");
+				return text;
+			})
+			.addButton((btn) => {
+				btn.setButtonText("追加").onClick(async () => {
+					const input = containerEl.querySelector<HTMLInputElement>(
+						"input[list='textlint-folder-list']"
+					);
+					const val = input?.value.trim();
+					if (val && !this.plugin.settings.excludedFolders.includes(val)) {
+						this.plugin.settings.excludedFolders.push(val);
+						await this.plugin.saveSettings();
+						this.display();
+					}
+				});
+			});
+	}
+
+	private refreshExcludedFolderList(listEl: HTMLElement): void {
+		listEl.empty();
+		for (const folder of this.plugin.settings.excludedFolders) {
+			const row = listEl.createDiv("textlint-excluded-folder-row");
+			row.createSpan({ text: folder });
+			const removeBtn = row.createEl("button", { text: "×" });
+			removeBtn.addEventListener("click", async () => {
+				this.plugin.settings.excludedFolders =
+					this.plugin.settings.excludedFolders.filter((f) => f !== folder);
+				await this.plugin.saveSettings();
+				this.display();
+			});
+		}
+	}
+
+	// ── preset-ja-technical-writing ──────────────────────────────────────────
+
+	private renderJaRules(containerEl: HTMLElement): void {
+		const cfg = this.plugin.settings.jaTechnicalWriting;
+
+		new Setting(containerEl)
+			.setName("有効")
+			.setDesc("preset-ja-technical-writing を使用する")
+			.addToggle((t) =>
+				t.setValue(cfg.enabled).onChange(async (v) => {
+					cfg.enabled = v;
 					await this.plugin.saveSettings();
-				}));
+				})
+			);
+
+		new Setting(containerEl)
+			.setName("読点の最大連続数 (max-ten)")
+			.setDesc("一文中の「、」の最大数。0 で無効")
+			.addSlider((s) =>
+				s
+					.setLimits(0, 10, 1)
+					.setValue(cfg.maxTen)
+					.setDynamicTooltip()
+					.onChange(async (v) => {
+						cfg.maxTen = v;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("連続する漢字の最大数 (max-kanji-continuous-len)")
+			.setDesc("連続する漢字の最大文字数。0 で無効")
+			.addSlider((s) =>
+				s
+					.setLimits(0, 20, 1)
+					.setValue(cfg.maxKanjiContinuousLen)
+					.setDynamicTooltip()
+					.onChange(async (v) => {
+						cfg.maxKanjiContinuousLen = v;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		const boolRules: { key: keyof JaTechnicalWritingConfig; name: string; desc: string }[] = [
+			{ key: "noMixDearuDesumasu", name: "である/ですます混在を禁止", desc: "no-mix-dearu-desumasu" },
+			{ key: "noDoubledJoshi", name: "助詞の連続を禁止", desc: "no-doubled-joshi" },
+			{ key: "jaNomixedPeriod", name: "句点の混在を禁止", desc: "ja-no-mixed-period" },
+			{ key: "jaNoRedundantExpression", name: "冗長な表現を禁止", desc: "ja-no-redundant-expression" },
+			{ key: "jaNoAbusage", name: "誤った用法を禁止", desc: "ja-no-abusage" },
+			{ key: "jaNoWeakPhrase", name: "弱い表現を禁止", desc: "ja-no-weak-phrase" },
+			{ key: "noDropTheSubject", name: "主語省略を禁止", desc: "no-drop-the-subject" },
+		];
+
+		for (const rule of boolRules) {
+			new Setting(containerEl)
+				.setName(rule.name)
+				.setDesc(rule.desc)
+				.addToggle((t) =>
+					t.setValue(cfg[rule.key] as boolean).onChange(async (v) => {
+						(cfg[rule.key] as boolean) = v;
+						await this.plugin.saveSettings();
+					})
+				);
+		}
+	}
+
+	// ── textlint-rule-terminology ─────────────────────────────────────────────
+
+	private renderTerminology(containerEl: HTMLElement): void {
+		const cfg = this.plugin.settings.terminology;
+
+		new Setting(containerEl)
+			.setName("有効")
+			.setDesc("textlint-rule-terminology を使用する")
+			.addToggle((t) =>
+				t.setValue(cfg.enabled).onChange(async (v) => {
+					cfg.enabled = v;
+					await this.plugin.saveSettings();
+				})
+			);
+
+		new Setting(containerEl)
+			.setName("コード内をスキップ")
+			.setDesc("コードスパン・コードブロック内のチェックをスキップする")
+			.addToggle((t) =>
+				t.setValue(cfg.skipCode).onChange(async (v) => {
+					cfg.skipCode = v;
+					await this.plugin.saveSettings();
+				})
+			);
+
+		containerEl.createEl("h3", { text: "カスタム用語" });
+		containerEl.createEl("p", {
+			text: "「誤り → 正しい表記」の形式で追加できます",
+			cls: "setting-item-description",
+		});
+
+		this.renderExtraTerms(containerEl);
+	}
+
+	private renderExtraTerms(containerEl: HTMLElement): void {
+		const cfg = this.plugin.settings.terminology;
+		const listEl = containerEl.createDiv("textlint-terms-list");
+
+		const refresh = () => {
+			listEl.empty();
+			for (let i = 0; i < cfg.extraTerms.length; i++) {
+				const term = cfg.extraTerms[i];
+				if (!term) continue;
+				const [incorrect, correct] = term;
+				const row = listEl.createDiv("textlint-term-row");
+				row.createSpan({ text: `${incorrect} → ${correct}` });
+				const removeBtn = row.createEl("button", { text: "×" });
+				removeBtn.addEventListener("click", async () => {
+					cfg.extraTerms.splice(i, 1);
+					await this.plugin.saveSettings();
+					refresh();
+				});
+			}
+		};
+		refresh();
+
+		let incorrectVal = "";
+		let correctVal = "";
+
+		new Setting(containerEl)
+			.setName("誤った表記")
+			.addText((t) => {
+				t.setPlaceholder("例: Github").onChange((v) => {
+					incorrectVal = v;
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("正しい表記")
+			.addText((t) => {
+				t.setPlaceholder("例: GitHub").onChange((v) => {
+					correctVal = v;
+				});
+			})
+			.addButton((btn) => {
+				btn.setButtonText("追加").onClick(async () => {
+					if (incorrectVal && correctVal) {
+						cfg.extraTerms.push([incorrectVal, correctVal]);
+						await this.plugin.saveSettings();
+						refresh();
+					}
+				});
+			});
 	}
 }

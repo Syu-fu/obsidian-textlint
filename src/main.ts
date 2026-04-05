@@ -1,99 +1,158 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+import { MarkdownView, Notice, Plugin, TFile } from "obsidian";
+import { DEFAULT_SETTINGS, TextlintPluginSettings, TextlintSettingTab } from "./settings";
+import { TextlintService } from "./textlint-service";
+import { buildTextlintExtension } from "./codemirror-linter";
+import { ERROR_LIST_VIEW_TYPE, ErrorListView } from "./error-list-view";
 
-// Remember to rename these classes and interfaces!
+export default class TextlintPlugin extends Plugin {
+	settings: TextlintPluginSettings;
+	private service: TextlintService;
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
-
-	async onload() {
+	async onload(): Promise<void> {
 		await this.loadSettings();
+		this.service = new TextlintService();
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
+		// Register the error list sidebar view
+		this.registerView(ERROR_LIST_VIEW_TYPE, (leaf) => new ErrorListView(leaf));
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
+		// Register CodeMirror extension for inline wavy underlines
+		this.registerEditorExtension(
+			buildTextlintExtension(this.service, () => this.settings)
+		);
 
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
+		// Re-lint current file whenever active file changes
+		this.registerEvent(
+			this.app.workspace.on("active-leaf-change", () => {
+				this.lintActiveFile();
+			})
+		);
 
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
+		// Re-lint on file save
+		this.registerEvent(
+			this.app.vault.on("modify", (file) => {
+				const active = this.app.workspace.getActiveFile();
+				if (active && file.path === active.path) {
+					this.lintActiveFile();
 				}
-				return false;
-			}
+			})
+		);
+
+		// Command: open error list panel
+		this.addCommand({
+			id: "show-error-list",
+			name: "エラー一覧を開く",
+			callback: () => this.openErrorListView(),
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			new Notice("Click");
+		// Command: fix current file
+		this.addCommand({
+			id: "fix-current-file",
+			name: "現在のファイルを修正する (Fix)",
+			checkCallback: (checking: boolean) => {
+				const file = this.app.workspace.getActiveFile();
+				if (!file || file.extension !== "md") return false;
+				if (!checking) void this.fixCurrentFile(file);
+				return true;
+			},
 		});
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-
+		// Settings tab
+		this.addSettingTab(new TextlintSettingTab(this.app, this));
 	}
 
-	onunload() {
+	onunload(): void {
+		this.app.workspace.detachLeavesOfType(ERROR_LIST_VIEW_TYPE);
 	}
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MyPluginSettings>);
+	async loadSettings(): Promise<void> {
+		this.settings = Object.assign(
+			{},
+			DEFAULT_SETTINGS,
+			(await this.loadData()) as Partial<TextlintPluginSettings>
+		);
+		// Deep merge nested objects that may be missing keys after an upgrade
+		this.settings.jaTechnicalWriting = Object.assign(
+			{},
+			DEFAULT_SETTINGS.jaTechnicalWriting,
+			this.settings.jaTechnicalWriting
+		);
+		this.settings.terminology = Object.assign(
+			{},
+			DEFAULT_SETTINGS.terminology,
+			this.settings.terminology
+		);
 	}
 
-	async saveSettings() {
+	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 	}
-}
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
+	// ── Helpers ──────────────────────────────────────────────────────────────
+
+	private isExcluded(file: TFile): boolean {
+		return this.settings.excludedFolders.some(
+			(folder) => file.path === folder || file.path.startsWith(folder + "/")
+		);
 	}
 
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
+	private async lintActiveFile(): Promise<void> {
+		const file = this.app.workspace.getActiveFile();
+		if (!file || file.extension !== "md" || this.isExcluded(file)) {
+			this.updateErrorView(file?.path ?? "", []);
+			return;
+		}
+		const text = await this.app.vault.cachedRead(file);
+		const { messages } = await this.service.lint(text, this.settings);
+		this.updateErrorView(file.path, messages);
 	}
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
+	private updateErrorView(filePath: string, messages: import("./textlint-service").TextlintMessage[]): void {
+		for (const leaf of this.app.workspace.getLeavesOfType(ERROR_LIST_VIEW_TYPE)) {
+			(leaf.view as ErrorListView).update(filePath, messages);
+		}
+	}
+
+	private async openErrorListView(): Promise<void> {
+		const existing = this.app.workspace.getLeavesOfType(ERROR_LIST_VIEW_TYPE);
+		if (existing.length > 0 && existing[0]) {
+			this.app.workspace.revealLeaf(existing[0]);
+			return;
+		}
+		const leaf = this.app.workspace.getRightLeaf(false) ?? this.app.workspace.getLeaf(true);
+		await leaf.setViewState({ type: ERROR_LIST_VIEW_TYPE, active: true });
+		this.app.workspace.revealLeaf(leaf);
+		await this.lintActiveFile();
+	}
+
+	private async fixCurrentFile(file: TFile): Promise<void> {
+		if (this.isExcluded(file)) {
+			new Notice("このファイルは除外フォルダ内にあります");
+			return;
+		}
+
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+		const originalText = view ? view.editor.getValue() : await this.app.vault.read(file);
+
+		const { output, messages } = await this.service.fix(originalText, this.settings);
+
+		if (output === originalText) {
+			new Notice("修正できる箇所はありませんでした");
+			return;
+		}
+
+		if (view) {
+			view.editor.setValue(output);
+		} else {
+			await this.app.vault.modify(file, output);
+		}
+
+		const remaining = messages.length;
+		new Notice(
+			remaining > 0
+				? `修正しました（${remaining} 件のエラーは自動修正できませんでした）`
+				: "修正しました"
+		);
+
+		await this.lintActiveFile();
 	}
 }
